@@ -10,7 +10,7 @@
 int main(void)
 {
     DDRA = 0x00; PORTA = 0xFF; // Configure port A's 8 pins as inputs
-    DDRC  = 0xFF; PORTC = 0x00; // Configure port C's 8 pins as outputs,
+    DDRC  = 0xFF; PORTC = 0x00; // Configure port C's 8 pins as outputs
     // initialize spaces to 4 and the rest to 0s
     unsigned char spaces = 0x04; // How many spaces total there are
     unsigned char cntavail = 0x00; 	// How many available spaces there are
