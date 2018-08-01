@@ -22,51 +22,51 @@ int main(void)
 	// initialize to 0s
 	unsigned char tmpC = 0x00; // intermediate variable used for port updates
 	unsigned char fuelLevel = 0;
-	unsigned char counter = 0;
-	unsigned char i = 0;
 	while(1)
 	{
 		// 1) Read Inputs and assign to variables
 		fuelLevel = PINA & 0x0F; // Mask PINA to only get the bits you are interested in
 		// 2) Perform Computation
 		// if PA0 is 1, set PB1PB0=01, else =10
-		counter = 0;
-		for (i = 0; i < 4; i++)
-		{
-			if (GetBit(fuelLevel, i))  // True if PAi is 1
-			{
-				if(i == 0)
-				{
-					counter = counter + 1;
-				}
-				counter = counter + (2 * i);
-			}
-		}
-		if (counter >= 1)
+		
+		if (fuelLevel >= 1)
 		{
 			tmpC = SetBit(tmpC, 5, 1); // Set bit 5 to 0
 		}
-		if (counter >= 3)
+
+		if (fuelLevel >= 3)
 		{
 			tmpC = SetBit(tmpC, 4, 1); // Set bit 5 to 0
 		}
-		if (counter >= 5)
+		
+		if (fuelLevel <= 4)
 		{
+			tmpC = SetBit(tmpC, 6, 1); //low fuel indicator
+		}
+		
+		if (fuelLevel >= 5)
+		{
+			tmpC = SetBit(tmpC, 6, 0); //low fuel indicator
 			tmpC = SetBit(tmpC, 3, 1); // Set bit 5 to 0
 		}
-		if (counter >= 7)
+
+		if (fuelLevel >= 7)
 		{
 			tmpC = SetBit(tmpC, 2, 1); // Set bit 5 to 0
 		}
-		if (counter >= 10)
+
+		if (fuelLevel >= 10)
 		{
 			tmpC = SetBit(tmpC, 1, 1); // Set bit 5 to 0
 		}
-		if (counter >= 13)
+
+		if (fuelLevel >= 13)
 		{
 			tmpC = SetBit(tmpC, 0, 1); // Set bit 5 to 0
 		}
+
 		// 3) write results to port
+
 		PORTC = tmpC;
 	}
 }
