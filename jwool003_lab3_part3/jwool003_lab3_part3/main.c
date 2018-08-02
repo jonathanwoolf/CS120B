@@ -9,7 +9,7 @@
 
 
 
-enum states {start, wait , unlock} state;
+enum states {start, wait , wait2, unlock} state;
 void tick();
 
 int main(void)
@@ -47,9 +47,15 @@ void tick()
 			else if(underByte == 0x02) { state = unlock;}
 			else { state = start;}
 			break;
+		case wait2:
+			if(underByte == buttonZ){ state = wait2;}
+			else if(underByte == 0x02) { state = start;}
+			else { state = unlock;}
+			break;
 		case unlock:
 			PORTB = 1;
 			if(buttonPA7){ state = start;}
+			else if(underByte == buttonZ){ state = wait2;}
 			else { state = unlock;}
 			break;
 		default:
