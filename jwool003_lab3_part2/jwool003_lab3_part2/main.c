@@ -1,6 +1,6 @@
 /*
  * jwool003_lab3_part2.c
- *
+ * jonathan woolf and Peter Kim
  * Created: 8/1/2018 3:56:10 PM
  * Author : ucrcse
  */ 
