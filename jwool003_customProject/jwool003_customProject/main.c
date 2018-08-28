@@ -6,15 +6,17 @@
  */ 
 
 #include <avr/io.h>
+#include <avr/interrupt.h>
 #include "timer.h"
 #include "io.c"
+#include "io.h"
 #include "bit.h"
 #include "scheduler.h"
 
 // === Inputs ===
-#define overDrive (~PINC & 0x80)
-#define rightButton (~PINC & 0x40)
-#define leftButton (~PINC & 0x20)
+#define overDrive (~PIND & 0x08)
+#define rightButton (~PIND & 0x20)
+#define leftButton (~PIND & 0x10)
 
 // === Global Variables ===
 unsigned char column_val; // sets the pattern displayed on columns
@@ -22,6 +24,8 @@ unsigned char column_sel; // grounds column to display pattern
 unsigned char char_location = 0x10; // Location of the player character
 unsigned char char_sel = 0x7F; // The bottom column where the character resides
 unsigned char startGame = 0; // starts the game
+/*unsigned short score = 0; // The player's score*/
+
 const unsigned char course[35] = {0x00, 0x00, 0xE7, 0x00, 0x00, 0x81, 0xE2, 0x62, 0x24, 0x34, 0x2E, 0xA4, 0x24, 0x22, 0x14, 0x12, 0x0A, 0x09, 0xAB, 0xC3, 0x55, 0xBA, 0xAA, 0xAB, 0x55, 0x00, 0xAA,
 0xE7, 0x55, 0xC3, 0xAA, 0xE7, 0x55, 0xC3, 0xAA};
 
@@ -70,7 +74,7 @@ int Character_Tick(int state)
 enum Obstacles_States {start, obstacleCourse, delay} Obstacles_State;
 int Obstacles_Task(int state)
 {
-	static char count = 0; 
+	//static char count = 0; 
 	static unsigned char i = 0; // Iterate through course
 	
 	switch (Obstacles_State){
@@ -91,8 +95,8 @@ int Obstacles_Task(int state)
  			//Obstacles_State = (overDrive == 1)? obstacleCourse : delay;
 			break;
 		case delay: // Fix
-			if(count < 2) { count++; Obstacles_State = delay;}
-			else { count = 0; Obstacles_State = obstacleCourse;}
+// 			if(count < 2) { count++; Obstacles_State = delay;}
+// 			else { count = 0; Obstacles_State = obstacleCourse;}
 			break;
 		default:
 			Obstacles_State = obstacleCourse; // A default state can only transition and will never allow you to set a value
@@ -108,12 +112,9 @@ enum Synch_States {display, gameOver} Synch_State;
 int Synch_Task(int state)
 {
 	static unsigned char flag = 1; // Flag bit used to set display output
-	unsigned short score = 0; // The player's score
-	unsigned char count; // Time elapsed
+	
 	switch(Synch_State){
 		case display: // Displays game and iterates score
-			if(count == 1000){ count = 0; score += 10;} // Increment score every 1000ms
-			count++;
 			if((column_sel == char_sel) && (column_val == (column_val | char_location))) { startGame = 0; Synch_State = gameOver;} // Collision detected GAME OVER
 			else if(flag){ flag = 0; PORTA = char_location; PORTB = char_sel; Synch_State = display;} // Flip between displaying character and obstacles
 			else{ flag = 1; PORTA = column_val; PORTB = column_sel; Synch_State = display;}
@@ -121,9 +122,8 @@ int Synch_Task(int state)
 		case gameOver: // Illuminate all LEDs and wait for soft reset
 			PORTA = 0xFF;
 			PORTB = 0x00;
-			count = 0;
 			Synch_State = gameOver;
-			if(startGame){ score = 0; Synch_State = display;} // Reset detected: reset score and return to display state
+			if(startGame){ Synch_State = display;} // Reset detected: reset score and return to display state
 			break;
 		default: 
 			Synch_State = display; // A default state can only transition and will never allow you to set a value
@@ -132,18 +132,50 @@ int Synch_Task(int state)
 	return Synch_State;
 }
 
+// ====================
+// SM4: Output score and special character to LCD
+// ====================
+enum Score_State {scoreDisplay} Score_State;
+int Score_Task(int state)
+{
+	static unsigned short score = 0; // The player's score
+	
+	switch(Score_State){
+		case scoreDisplay: // Displays game and iterates score
+			if(startGame) // Increment score every 1000ms
+			{
+				LCD_Cursor(1);
+				LCD_WriteData(score + 0);
+				LCD_WriteData(0 + 0);
+				score = score + 1;
+			}
+			else if(!startGame){ score = 0;}
+			Score_State = scoreDisplay;
+			break;
+		default:
+			Score_State = scoreDisplay;
+			break;
+	}
+	return Score_State;
+}
+
 int main(void)
 {	
-	DDRA = 0xFF;  PORTA = 0x00; //output value to selected column(s)
-	DDRB = 0xFF;  PORTB = 0x00; //output selected column(s)
-	DDRC = 0x00;  PORTC = 0xFF; // button input
+	DDRA = 0xFF;  PORTA = 0x00; // Output value to selected column(s)
+	DDRB = 0xFF;  PORTB = 0x00; // Output selected column(s)
+	DDRC = 0xFF;  PORTC = 0x00; // LCD Output
+	DDRD = 0xC0;  PORTD = 0x3F; // Button Input
+	
+	LCD_init();
+	LCD_Cursor(1);
+	LCD_WriteData(0 + '0');
 	
 	TimerSet(tasksPeriod);
 	TimerOn();
 	
 	unsigned char i = 0;
 	tasks[i].state = -1;
-	tasks[i].period = 100;
+	tasks[i].period = 50;
 	tasks[i].elapsedTime = 0;
 	tasks[i].TickFct = &Character_Tick;
 	i++;
@@ -156,6 +188,11 @@ int main(void)
 	tasks[i].period = 1;
 	tasks[i].elapsedTime = 0;
 	tasks[i].TickFct = &Synch_Task;
+	i++;
+	tasks[i].state = -1;
+	tasks[i].period = 1000;
+	tasks[i].elapsedTime = 0;
+	tasks[i].TickFct = &Score_Task;
     while(1){}
 }
 

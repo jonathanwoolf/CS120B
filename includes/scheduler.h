@@ -7,7 +7,7 @@
 #ifndef SCHEDULER_H
 #define SCHEDULER_H
 
-#define tasksSize 3 //# of tasks being scheduled
+#define tasksSize 4 //# of tasks being scheduled
 #define tasksPeriod 1 //GCD of all task DEFAULT TO 1 UNTIL OPTOMIZED 
 
 ////////////////////////////////////////////////////////////////////////////////
