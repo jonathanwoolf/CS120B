@@ -135,25 +135,24 @@ int Synch_Task(int state)
 // ====================
 // SM4: Output score and special character to LCD
 // ====================
-enum Score_State {scoreDisplay} Score_State;
+enum Score_State {scoreStart, scoreDisplay} Score_State;
 int Score_Task(int state)
 {
 	static unsigned short score = 0; // The player's score
-	
 	switch(Score_State){
+		case scoreStart: 
+			Score_State = scoreStart;
+			if(startGame){ LCD_Cursor(16); LCD_WriteData(score + '0'); Score_State = scoreDisplay;}
+			break;
 		case scoreDisplay: // Displays game and iterates score
-			if(startGame) // Increment score every 1000ms
-			{
-				LCD_Cursor(1);
-				LCD_WriteData(score + 0);
-				LCD_WriteData(0 + 0);
-				score = score + 1;
-			}
-			else if(!startGame){ score = 0;}
+			LCD_Cursor(16);
+			LCD_WriteData(score + '0');
+			score = score + 1;
 			Score_State = scoreDisplay;
+			if(!startGame){ score = 0; Score_State = scoreStart;}
 			break;
 		default:
-			Score_State = scoreDisplay;
+			Score_State = scoreStart;
 			break;
 	}
 	return Score_State;
@@ -167,8 +166,7 @@ int main(void)
 	DDRD = 0xC0;  PORTD = 0x3F; // Button Input
 	
 	LCD_init();
-	LCD_Cursor(1);
-	LCD_WriteData(0 + '0');
+	LCD_Cursor(16);
 	
 	TimerSet(tasksPeriod);
 	TimerOn();
