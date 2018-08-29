@@ -1,8 +1,8 @@
 /*
  * jwool003_customProject.c
- *
+ * CubeRunner: Lit Edition
  * Created: 8/23/2018 5:27:32 PM
- * Author : Jonathan
+ * Author : Jonathan Woolf 861172158
  */ 
 
 #include <avr/io.h>
@@ -154,7 +154,7 @@ int Synch_Task(int state)
 			PORTA = 0xFF;
 			PORTB = 0x00;
 			Synch_State = gameOver;
-			if(startGame){ Synch_State = display;} // Reset detected: reset score and return to display state
+			if(startGame){ char_location = 0x10; Synch_State = display;} // Reset detected: reset score and character location and return to display state
 			break;
 		default: 
 			Synch_State = display; // A default state can only transition and will never allow you to set a value
@@ -253,7 +253,7 @@ int main(void)
 	TimerSet(tasksPeriod); // Set the period for the entire system
 	TimerOn();
 	
-	// Initialize schedule tasks 
+	// Initialize scheduled tasks 
 	unsigned char i = 0;
 	tasks[i].state = -1;
 	tasks[i].period = 50;
