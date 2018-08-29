@@ -40,6 +40,23 @@ const unsigned char course[35] = {0x81, 0x81, 0xE7, 0x81, 0x81, 0x81, 0xEA, 0x62
 unsigned char customChar1[8] = {0x0A, 0x15, 0x1B, 0x15, 0x15, 0x15, 0x0A, 0x0E}; // Inverted custom character
 unsigned char customChar2[8] = {0x15, 0x0A, 0x04, 0x0A, 0x0A, 0x0A, 0x15, 0x11}; // This is the non-inverted one ;)
 
+void transmit_data(unsigned char data) {
+	int i;
+	for (i = 8; i >= 0 ; --i) {
+		// Sets SRCLR to 1 allowing data to be set
+		// Also clears SRCLK in preparation of sending data
+		PORTA = 0x08;
+		// set SER = next bit of data to be sent.
+		PORTA |= ((data >> i) & 0x01);
+		// set SRCLK = 1. Rising edge shifts next bit of data into the shift register
+		PORTA |= 0x02;
+	}
+	// set RCLK = 1. Rising edge copies data from “Shift” register to “Storage” register
+	PORTA |= 0x04;
+	// clears all lines in preparation of a new transmission
+	PORTA = 0x00;
+}
+
 // ====================
 // SM1: Moves your character on the matrix
 // ====================
@@ -146,11 +163,11 @@ int Synch_Task(int state)
 	switch(Synch_State){
 		case display: // Displays game and iterates score
 			if((column_sel == char_sel) && (column_val == (column_val | char_location))) { startGame = 0; masRapido = 0; char_location = 0x10; Synch_State = gameOver;} // Collision detected GAME OVER
-			else if(flag){ flag = 0; PORTA = char_location; PORTB = char_sel; Synch_State = display;} // Flip between displaying character and obstacles
-			else{ flag = 1; PORTA = column_val; PORTB = column_sel; Synch_State = display;}
+			else if(flag){ flag = 0; transmit_data(char_location); PORTB = char_sel; Synch_State = display;} // Flip between displaying character and obstacles
+			else{ flag = 1; transmit_data(column_val); PORTB = column_sel; Synch_State = display;}
 			break;
 		case gameOver: // Illuminate all LEDs and wait for soft reset
-			PORTA = 0xFF;
+			transmit_data(0xFF);
 			PORTB = 0x00;
 			Synch_State = gameOver;
 			if(startGame){ char_location = 0x10; Synch_State = display;} // Reset detected: reset score and character location and return to display state
@@ -186,7 +203,7 @@ int Score_Task(int state)
 		case scoreDisplay: // Displays game and iterates score
 			if(startGame)
 			{
-				if(masRapido){ score = score + 2; score1 = score1 + 2;} // Iterate actual score and 1th place score on overDrive
+				if(masRapido){ score = score + 3; score1 = score1 + 3;} // Iterate actual score and 1th place score on overDrive
 				else if(!masRapido){ score++; score1++;} // Iterate actual score and 1th place score
 				if(score1 > 9) {score1 -= 10; score10++;} // Iterate 10th place score
 				if(score10 > 9) {score10 -= 10; score100++;} // Iterate 100th place score
