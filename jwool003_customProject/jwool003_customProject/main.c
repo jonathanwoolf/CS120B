@@ -115,8 +115,8 @@ int Obstacles_Task(int state)
 				column_val = ~course[i];
 			}
 			i++;
+			if(i == 36) { i = 6; flag = !flag;} // If the end of the course is reached, reset iterator at beginning of standard course
 		}
-		if(i == 36) { i = 6; flag = !flag;} // If the end of the course is reached, reset iterator at beginning of standard course
 		else 
 		{
 			column_sel = (column_sel << 1) | 0x01; // Move obstacle column down toward the character and "or" with 0x01 in order to only display one column at a time
