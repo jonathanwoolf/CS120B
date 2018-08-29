@@ -7,9 +7,9 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/eeprom.h>
 #include "timer.h"
 #include "io.c"
-#include "io.h"
 #include "bit.h"
 #include "scheduler.h"
 
@@ -24,17 +24,26 @@ unsigned char column_sel; // grounds column to display pattern
 unsigned char char_location = 0x10; // Location of the player character
 unsigned char char_sel = 0x7F; // The bottom column where the character resides
 unsigned char startGame = 0; // starts the game
-/*unsigned short score = 0; // The player's score*/
+unsigned char score = 0;
+unsigned char score1 = 0; // The player's score
+unsigned char score10 = 0;
+unsigned char score100 = 0;
+unsigned char highscore;
+unsigned char highscore1; // The player's score
+unsigned char highscore10;
+unsigned char highscore100;
 
-const unsigned char course[35] = {0x00, 0x00, 0xE7, 0x00, 0x00, 0x81, 0xE2, 0x62, 0x24, 0x34, 0x2E, 0xA4, 0x24, 0x22, 0x14, 0x12, 0x0A, 0x09, 0xAB, 0xC3, 0x55, 0xBA, 0xAA, 0xAB, 0x55, 0x00, 0xAA,
+const unsigned char course[35] = {0x81, 0x00, 0xE7, 0x00, 0x00, 0x81, 0xE2, 0x62, 0x24, 0x34, 0x2E, 0xA4, 0x24, 0x22, 0x14, 0x12, 0x0A, 0x09, 0xAB, 0xC3, 0x55, 0xBA, 0xAA, 0xAB, 0x55, 0x00, 0xAA,
 0xE7, 0x55, 0xC3, 0xAA, 0xE7, 0x55, 0xC3, 0xAA};
+unsigned char customChar1[8] = {0x0A, 0x15, 0x1B, 0x15, 0x15, 0x15, 0x0A, 0x0E};
+unsigned char customChar2[8] = {0x15, 0x0A, 0x04, 0x0A, 0x0A, 0x0A, 0x15, 0x11};
 
 // ====================
 // SM1: Moves your character on the matrix
 // ====================
 enum Character_States {button, wait} Character_State;
 int Character_Tick(int state) 
-{
+{		
 	switch (Character_State) {
 		case button:
 			if(leftButton && !rightButton) // Character moves to the left to avoid obstacles
@@ -49,10 +58,10 @@ int Character_Tick(int state)
 			}
 			else if(leftButton && rightButton) // So are you starting the game or just too stupid to hit the buttons one at a time?
 			{
-				startGame = 1; // The game will now start generating obstacles.. the LCD Soundsystem guy is losing his edge
+				startGame = 1; // The game will now start generating obstacles.. the LCD SoundSystem guy is losing his edge
 				Character_State = wait;
 			}
-			else {Character_State = button;} // No user input occured
+			else {Character_State = button;} // No user input occurred
 			break;
 		case wait:
 			if(!leftButton && !rightButton) // Wait for buttons to stop being pressed
@@ -115,7 +124,7 @@ int Synch_Task(int state)
 	
 	switch(Synch_State){
 		case display: // Displays game and iterates score
-			if((column_sel == char_sel) && (column_val == (column_val | char_location))) { startGame = 0; Synch_State = gameOver;} // Collision detected GAME OVER
+			if((column_sel == char_sel) && (column_val == (column_val | char_location))) { startGame = 0; char_location = 0x10; Synch_State = gameOver;} // Collision detected GAME OVER
 			else if(flag){ flag = 0; PORTA = char_location; PORTB = char_sel; Synch_State = display;} // Flip between displaying character and obstacles
 			else{ flag = 1; PORTA = column_val; PORTB = column_sel; Synch_State = display;}
 			break;
@@ -137,19 +146,51 @@ int Synch_Task(int state)
 // ====================
 enum Score_State {scoreStart, scoreDisplay} Score_State;
 int Score_Task(int state)
-{
-	static unsigned short score = 0; // The player's score
+{	
 	switch(Score_State){
 		case scoreStart: 
 			Score_State = scoreStart;
-			if(startGame){ LCD_Cursor(16); LCD_WriteData(score + '0'); Score_State = scoreDisplay;}
+			if(startGame)
+			{ 
+				score100 = 0;
+				score10 = 0;
+				score1 = 0;
+				score = 0;
+				LCD_Cursor(2); LCD_WriteData(score100 + '0'); 
+				LCD_Cursor(3); LCD_WriteData(score10 + '0'); 
+				LCD_Cursor(4); LCD_WriteData(score1 + '0'); 
+				Score_State = scoreDisplay;
+			}
 			break;
 		case scoreDisplay: // Displays game and iterates score
-			LCD_Cursor(16);
-			LCD_WriteData(score + '0');
-			score = score + 1;
-			Score_State = scoreDisplay;
-			if(!startGame){ score = 0; Score_State = scoreStart;}
+			if(startGame)
+			{
+				score++;
+				score1++;
+				if(score1 > 9) {score1 -= 10; score10++;}
+				if(score10 > 9) {score10 -= 10; score100++;}
+				LCD_Cursor(2); LCD_WriteData(score100 + '0');
+				LCD_Cursor(3); LCD_WriteData(score10 + '0');
+				LCD_Cursor(4); LCD_WriteData(score1 + '0');
+				Score_State = scoreDisplay;
+			}
+			if(!startGame)
+			{
+				if(score > highscore)
+				{
+					highscore100 = score100;
+					highscore10 = score10;
+					highscore1 = score1;
+					highscore = score;
+				}
+				
+				eeprom_write_byte((uint8_t*)3, highscore100);
+				eeprom_write_byte((uint8_t*)4, highscore10);
+				eeprom_write_byte((uint8_t*)5, highscore1);
+				eeprom_write_byte((uint8_t*)6, highscore);
+				
+				Score_State = scoreStart;
+			}
 			break;
 		default:
 			Score_State = scoreStart;
@@ -166,11 +207,32 @@ int main(void)
 	DDRD = 0xC0;  PORTD = 0x3F; // Button Input
 	
 	LCD_init();
-	LCD_Cursor(16);
-	
+	LCD_WriteCommand(0x0C);
+	highscore100 = eeprom_read_byte((uint8_t*)3);
+	highscore10 = eeprom_read_byte((uint8_t*)4);
+	highscore1 = eeprom_read_byte((uint8_t*)5);
+	highscore = eeprom_read_byte((uint8_t*)6);
+	if(highscore100 > 9)
+	{ 
+		eeprom_write_byte((uint8_t*)3, 0);
+		eeprom_write_byte((uint8_t*)4, 0);
+		eeprom_write_byte((uint8_t*)5, 0);
+		eeprom_write_byte((uint8_t*)6, 0);
+		highscore100 = 0;
+		highscore10 = 0;
+		highscore1 = 0;
+		highscore = 0;
+	}
+	LCDBuildChar(1, customChar1); 
+	LCDBuildChar(2, customChar2);
+	LCD_Cursor(1); LCD_WriteData(1);
+	LCD_Cursor(2); LCD_WriteData(highscore100 + '0');
+	LCD_Cursor(3); LCD_WriteData(highscore10 + '0');
+	LCD_Cursor(4); LCD_WriteData(highscore1 + '0');
+	LCD_Cursor(5); LCD_WriteData(2);
 	TimerSet(tasksPeriod);
 	TimerOn();
-	
+
 	unsigned char i = 0;
 	tasks[i].state = -1;
 	tasks[i].period = 50;

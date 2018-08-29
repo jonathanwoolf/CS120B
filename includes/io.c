@@ -69,7 +69,6 @@ void LCD_Cursor(unsigned char column) {
 }
 
 void delay_ms(int miliSec) //for 8 Mhz crystal
-
 {
     int i,j;
     for(i=0;i<miliSec;i++)
@@ -77,4 +76,25 @@ void delay_ms(int miliSec) //for 8 Mhz crystal
   {
    asm("nop");
   }
+}
+
+/**********************************************************
+ Function Name: LCDBuildChar
+ Input:
+ loc: location where you want to store 0,1,2,....7
+ p: Pointer to pattern data
+ Usage:
+ LCDBuildChar(1,pattern);
+ ********************************************************* */
+
+void LCDBuildChar(unsigned char loc, unsigned char *p)
+{
+ unsigned char i;
+ if(loc<8) //If valid address
+ {
+  LCD_WriteCommand(0x40+(loc*8)); //Write to CGRAM
+  for(i=0;i<8;i++)
+  LCD_WriteData(p[i]); //Write the character pattern to CGRAM
+ }
+  LCD_WriteCommand(0x80); //shift back to DDRAM location 0
 }
