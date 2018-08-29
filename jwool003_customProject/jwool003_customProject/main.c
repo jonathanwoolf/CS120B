@@ -266,7 +266,7 @@ int main(void)
 	tasks[i].TickFct = &Obstacles_Task;
 	i++;
 	tasks[i].state = -1;
-	tasks[i].period = 15; // Will occur 66fps
+	tasks[i].period = 1; 
 	tasks[i].elapsedTime = 0;
 	tasks[i].TickFct = &Synch_Task;
 	i++;
