@@ -24,6 +24,7 @@ unsigned char column_sel; // grounds column to display pattern
 unsigned char char_location = 0x10; // Location of the player character
 unsigned char char_sel = 0x7F; // The bottom column where the character resides
 unsigned char startGame = 0; // starts the game
+unsigned char masRapido = 0; // Speeds up course
 unsigned char score = 0; // The player's score
 unsigned char score1 = 0; 
 unsigned char score10 = 0;
@@ -33,8 +34,8 @@ unsigned char highscore1 = 0;
 unsigned char highscore10 = 0;
 unsigned char highscore100 = 0;
 	
-const unsigned char course[35] = {0x81, 0x81, 0xE7, 0x81, 0x81, 0x81, 0xE2, 0x62, 0x24, 0x34, 0x2E, 0xA4, 0x24, 0x22, 0x14, 0x12, 0x0A, 0x09, 0xAB, 0xC3, 0x55, 0xBA, 0xAA, 0xAB, 0x55, 0x33, 0xAA,
-0xE7, 0x55, 0xC3, 0xAA, 0xE7, 0x55, 0xC3, 0xAA}; // This is the obstacle course
+const unsigned char course[35] = {0x81, 0x81, 0xE7, 0x81, 0x81, 0x81, 0xEA, 0x62, 0x34, 0x43, 0x2E, 0xB4, 0x24, 0x32, 0x15, 0x12, 0x0A, 0x89, 0xAB, 0xCB, 0x55, 0xBA, 0xBA, 0xAB, 0x55, 0x33, 0xAA,
+0xE7, 0x55, 0xCB, 0xAA, 0xE7, 0x55, 0xCB, 0xAA}; // This is the obstacle course
 
 unsigned char customChar1[8] = {0x0A, 0x15, 0x1B, 0x15, 0x15, 0x15, 0x0A, 0x0E}; // Inverted custom character
 unsigned char customChar2[8] = {0x15, 0x0A, 0x04, 0x0A, 0x0A, 0x0A, 0x15, 0x11}; // This is the non-inverted one ;)
@@ -47,12 +48,11 @@ int Character_Tick(int state)
 {		
 	switch (Character_State) {
 		case button:
-// 			if(overDrive) // THIS IS VERY BROKEN
-// 			{
-// 				LCD_Cursor(2); LCD_WriteData('H' + '0');
-// 				LCD_Cursor(3); LCD_WriteData('E' + '0');
-// 				LCD_Cursor(4); LCD_WriteData('Y' + '0');
-// 			}
+			if(overDrive) // THIS IS VERY BROKEN
+			{
+				masRapido = !masRapido;
+				Character_State = wait;
+			}
 			if(leftButton && !rightButton) // Character moves to the left to avoid obstacles
 			{ 
 				if(char_location != 0x01) { char_location = char_location >> 1;} // Obviously a right shift must occur
@@ -90,44 +90,43 @@ int Character_Tick(int state)
 enum Obstacles_States {start, obstacleCourse, delay} Obstacles_State;
 int Obstacles_Task(int state)
 {
-	//static char count = 0; 
+	static char count = 0; 
 	static unsigned char flag = 0; // Flag to switch between courses
 	static unsigned char i = 0; // Iterate through course
 	
 	switch (Obstacles_State){
 		case start:
-		flag = 0;
-		column_sel = 0xFE; // Initializes start point for course
-		column_val = course[i]; // assign course to column_val
-		if(startGame) { Obstacles_State = obstacleCourse;} // Start generating obstacles when user hits both buttons
-		else { Obstacles_State = start;} // Wait for user to start the game
-		break;
+			
+			column_sel = 0xFE; // Initializes start point for course
+			column_val = course[i]; // assign course to column_val
+			if(startGame) { Obstacles_State = obstacleCourse;} // Start generating obstacles when user hits both buttons
+			else { Obstacles_State = start;} // Wait for user to start the game
+			break;
 	case obstacleCourse:   // Generate obstacles
 		if(column_sel == 0x7F) // If obstacle reaches the character return to the top of the matrix and iterate through course
 		{
 			column_sel = 0xFE;
-			if(flag == 0) // Display standard course
+			if(i == 35) { i = 6; flag = !flag;} // If the end of the course is reached, reset iterator at beginning of standard course
+			if(!flag) // Display standard course
 			{
 				column_val = course[i];
 			} 
-			else // Display inverted course after standard course is complete
+			else if(flag) // Display inverted course after standard course is complete
 			{
 				column_val = ~course[i];
 			}
 			i++;
-			if(i == 36) { i = 6; flag = !flag;} // If the end of the course is reached, reset iterator at beginning of standard course
 		}
-		else 
+		else if(column_sel != 0x7F)
 		{
 			column_sel = (column_sel << 1) | 0x01; // Move obstacle column down toward the character and "or" with 0x01 in order to only display one column at a time
 		}
-		Obstacles_State = obstacleCourse; // Continue to iterate obstacle course
-		if(!startGame) { i = 0; Obstacles_State = start;} // Go to start and await soft reset
-		//Obstacles_State = (overDrive == 1)? obstacleCourse : delay;
+		Obstacles_State = masRapido? obstacleCourse : delay; // Continue to iterate obstacle course
+		if(!startGame) { i = 0; flag = 0; Obstacles_State = start;} // Go to start and await soft reset
 		break;
 	case delay: // Fix
-		// 			if(count < 2) { count++; Obstacles_State = delay;}
-		// 			else { count = 0; Obstacles_State = obstacleCourse;}
+		if(count < 1) { count++; Obstacles_State = delay;}
+		else { count = 0; Obstacles_State = obstacleCourse;}
 		break;
 	default:
 		Obstacles_State = obstacleCourse; // A default state can only transition and will never allow you to set a value
@@ -146,7 +145,7 @@ int Synch_Task(int state)
 	
 	switch(Synch_State){
 		case display: // Displays game and iterates score
-			if((column_sel == char_sel) && (column_val == (column_val | char_location))) { startGame = 0; char_location = 0x10; Synch_State = gameOver;} // Collision detected GAME OVER
+			if((column_sel == char_sel) && (column_val == (column_val | char_location))) { startGame = 0; masRapido = 0; char_location = 0x10; Synch_State = gameOver;} // Collision detected GAME OVER
 			else if(flag){ flag = 0; PORTA = char_location; PORTB = char_sel; Synch_State = display;} // Flip between displaying character and obstacles
 			else{ flag = 1; PORTA = column_val; PORTB = column_sel; Synch_State = display;}
 			break;
@@ -187,8 +186,8 @@ int Score_Task(int state)
 		case scoreDisplay: // Displays game and iterates score
 			if(startGame)
 			{
-				score++; // Iterate actual score
-				score1++; // Iterate 1th place score
+				if(masRapido){ score = score + 2; score1 = score1 + 2;} // Iterate actual score and 1th place score on overDrive
+				else if(!masRapido){ score++; score1++;} // Iterate actual score and 1th place score
 				if(score1 > 9) {score1 -= 10; score10++;} // Iterate 10th place score
 				if(score10 > 9) {score10 -= 10; score100++;} // Iterate 100th place score
 				LCD_Cursor(2); LCD_WriteData(score100 + '0'); //Write each score value to the display from 100th place to 1th place
@@ -261,7 +260,7 @@ int main(void)
 	tasks[i].TickFct = &Character_Tick;
 	i++;
 	tasks[i].state = start;
-	tasks[i].period = 100;
+	tasks[i].period = 70;
 	tasks[i].elapsedTime = 0;
 	tasks[i].TickFct = &Obstacles_Task;
 	i++;
