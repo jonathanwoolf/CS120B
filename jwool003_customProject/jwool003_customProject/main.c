@@ -58,8 +58,7 @@ void transmit_data(unsigned char data) // Outputs to the lower nibble of PORTA a
 	PORTA = 0x00;
 }
 
-void transmit_data2(unsigned char data) // Outputs to the upper nibble of PORTA and controls which columns are selected
-{
+void transmit_data2(unsigned char data) // Outputs to the upper nibble of PORTA and controls what value (displayed in green) is assigned to selected columns
 	int i;
 	for (i = 8; i >= 0 ; --i) {
 		// Sets SRCLR to 1 allowing data to be set
