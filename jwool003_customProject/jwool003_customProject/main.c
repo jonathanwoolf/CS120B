@@ -40,7 +40,8 @@ const unsigned char course[35] = {0x81, 0x81, 0xE7, 0x81, 0x81, 0x81, 0xEA, 0x62
 unsigned char customChar1[8] = {0x0A, 0x15, 0x1B, 0x15, 0x15, 0x15, 0x0A, 0x0E}; // Inverted custom character
 unsigned char customChar2[8] = {0x15, 0x0A, 0x04, 0x0A, 0x0A, 0x0A, 0x15, 0x11}; // This is the non-inverted one ;)
 
-void transmit_data(unsigned char data) {
+void transmit_data(unsigned char data) // Outputs to the lower nibble of PORTA and controls which columns are selected
+{
 	int i;
 	for (i = 8; i >= 0 ; --i) {
 		// Sets SRCLR to 1 allowing data to be set
@@ -57,6 +58,24 @@ void transmit_data(unsigned char data) {
 	PORTA = 0x00;
 }
 
+void transmit_data2(unsigned char data) // Outputs to the upper nibble of PORTA and controls which columns are selected
+{
+	int i;
+	for (i = 8; i >= 0 ; --i) {
+		// Sets SRCLR to 1 allowing data to be set
+		// Also clears SRCLK in preparation of sending data
+		PORTA = 0x80;
+		// set SER = next bit of data to be sent.
+		PORTA |= (((data >> i) & 0x01)) << 4;
+		// set SRCLK = 1. Rising edge shifts next bit of data into the shift register
+		PORTA |= 0x20;
+	}
+	// set RCLK = 1. Rising edge copies data from “Shift” register to “Storage” register
+	PORTA |= 0x40;
+	// clears all lines in preparation of a new transmission
+	PORTA = 0x00;
+}
+
 // ====================
 // SM1: Moves your character on the matrix
 // ====================
@@ -65,9 +84,9 @@ int Character_Tick(int state)
 {		
 	switch (Character_State) {
 		case button:
-			if(overDrive) // THIS IS VERY BROKEN
+			if(overDrive) // Sets flag that increases the speed of obstacles and the rate in which score is increased
 			{
-				masRapido = !masRapido;
+				masRapido = !masRapido; // Overdrive flag can be turned on and off each time the button is pressed
 				Character_State = wait;
 			}
 			if(leftButton && !rightButton) // Character moves to the left to avoid obstacles
@@ -94,8 +113,8 @@ int Character_Tick(int state)
 			}
 			else {Character_State = wait;} 
 			break;
-		default:
-			Character_State = button; // A default state can only transition and will never allow you to set a value	        
+		default: // A default state can only transition and will never allow you to set a value	 
+			Character_State = button;        
 			break;
 	}
 	return Character_State; // Return value of type int
@@ -107,13 +126,11 @@ int Character_Tick(int state)
 enum Obstacles_States {start, obstacleCourse, delay} Obstacles_State;
 int Obstacles_Task(int state)
 {
-	static char count = 0; 
 	static unsigned char flag = 0; // Flag to switch between courses
 	static unsigned char i = 0; // Iterate through course
 	
 	switch (Obstacles_State){
 		case start:
-			
 			column_sel = 0xFE; // Initializes start point for course
 			column_val = course[i]; // assign course to column_val
 			if(startGame) { Obstacles_State = obstacleCourse;} // Start generating obstacles when user hits both buttons
@@ -139,14 +156,19 @@ int Obstacles_Task(int state)
 			column_sel = (column_sel << 1) | 0x01; // Move obstacle column down toward the character and "or" with 0x01 in order to only display one column at a time
 		}
 		Obstacles_State = masRapido? obstacleCourse : delay; // Continue to iterate obstacle course
-		if(!startGame) { i = 0; flag = 0; Obstacles_State = start;} // Go to start and await soft reset
+		if(!startGame) // Go to start and await soft reset
+		{ 
+			i = 0; 
+			flag = 0; 
+			masRapido = 0;
+			Obstacles_State = start;
+		} 
 		break;
-	case delay: // Fix
-		if(count < 1) { count++; Obstacles_State = delay;}
-		else { count = 0; Obstacles_State = obstacleCourse;}
+	case delay: // Delay doubles the time it takes for an obstacle to approach the character and is controlled by the masRapido flag
+		Obstacles_State = obstacleCourse;
 		break;
-	default:
-		Obstacles_State = obstacleCourse; // A default state can only transition and will never allow you to set a value
+	default: // A default state can only transition and will never allow you to set a value
+		Obstacles_State = start; 
 		break;
 	}
 	return Obstacles_State;
@@ -162,18 +184,43 @@ int Synch_Task(int state)
 	
 	switch(Synch_State){
 		case display: // Displays game and iterates score
-			if((column_sel == char_sel) && (column_val == (column_val | char_location))) { startGame = 0; masRapido = 0; char_location = 0x10; Synch_State = gameOver;} // Collision detected GAME OVER
-			else if(flag){ flag = 0; transmit_data(char_location); PORTB = char_sel; Synch_State = display;} // Flip between displaying character and obstacles
-			else{ flag = 1; transmit_data(column_val); PORTB = column_sel; Synch_State = display;}
+			// Clear all LED matrix ports
+			transmit_data(0x00); 
+			transmit_data2(0xFF); 
+			PORTB = 0xFF;
+			if((column_sel == char_sel) && (column_val == (column_val | char_location))) // Collision detected GAME OVER
+			{ 
+				startGame = 0; 
+				char_location = 0x10; 
+				Synch_State = gameOver;
+			} 
+			else if(flag) // Flip between displaying character and obstacles
+			{ 
+				flag = 0; 
+				transmit_data(char_location); 
+				transmit_data2(char_sel); 
+				Synch_State = display;
+			} 
+			else
+			{
+				 flag = 1; 
+				 transmit_data(column_val); 
+				 PORTB = column_sel; 
+				 Synch_State = display;
+			}
 			break;
 		case gameOver: // Illuminate all LEDs and wait for soft reset
 			transmit_data(0xFF);
 			PORTB = 0x00;
 			Synch_State = gameOver;
-			if(startGame){ char_location = 0x10; Synch_State = display;} // Reset detected: reset score and character location and return to display state
+			if(startGame) // Reset detected: reset score and character location and return to display state
+			{ 
+				char_location = 0x10; 
+				Synch_State = display;
+			} 
 			break;
-		default: 
-			Synch_State = display; // A default state can only transition and will never allow you to set a value
+		default: // A default state can only transition and will never allow you to set a value
+			Synch_State = display; 
 			break;
 	}
 	return Synch_State;
@@ -203,10 +250,26 @@ int Score_Task(int state)
 		case scoreDisplay: // Displays game and iterates score
 			if(startGame)
 			{
-				if(masRapido){ score = score + 3; score1 = score1 + 3;} // Iterate actual score and 1th place score on overDrive
-				else if(!masRapido){ score++; score1++;} // Iterate actual score and 1th place score
-				if(score1 > 9) {score1 -= 10; score10++;} // Iterate 10th place score
-				if(score10 > 9) {score10 -= 10; score100++;} // Iterate 100th place score
+				if(masRapido) // Iterate actual score and 1th place score on overDrive
+				{ 
+					score = score + 3; 
+					score1 = score1 + 3;
+				} 
+				else if(!masRapido) // Iterate actual score and 1th place score during standard gameplay
+				{ 
+					score++; 
+					score1++;
+				} 
+				if(score1 > 9)  // Iterate 10th place score
+				{
+					score1 -= 10; 
+					score10++;
+				}
+				if(score10 > 9) // Iterate 100th place score
+				{
+					score10 -= 10; 
+					score100++;
+				} 
 				LCD_Cursor(2); LCD_WriteData(score100 + '0'); //Write each score value to the display from 100th place to 1th place
 				LCD_Cursor(3); LCD_WriteData(score10 + '0');
 				LCD_Cursor(4); LCD_WriteData(score1 + '0');
@@ -230,7 +293,7 @@ int Score_Task(int state)
 				Score_State = scoreStart;
 			}
 			break;
-		default:
+		default: // A default state can only transition and will never allow you to set a value
 			Score_State = scoreStart;
 			break;
 	}
@@ -251,7 +314,7 @@ int main(void)
 	highscore10 = eeprom_read_byte((uint8_t*)4);
 	highscore1 = eeprom_read_byte((uint8_t*)5);
 	highscore = eeprom_read_byte((uint8_t*)6);
-	if(highscore100 > 9) // Reset high score to 0 if memory has been corrupted
+	if(highscore100 > 10) // Reset high score to 0 if memory has been corrupted
 	{ 
 		highscore100 = 0;
 		highscore10 = 0;
