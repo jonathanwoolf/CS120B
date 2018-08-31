@@ -21,8 +21,8 @@ Points will be displayed on the LCD and a high score will be saved to the device
 Complexity:
 
 One LED matrix that displays your character and obstacles
-Two shift registers enabling additional colors and freeing up space on the microprocesser 
-EEPROM stores the high score to the microprocesser even when powered off
+Two shift registers enabling additional colors and freeing up space on the microprocessor 
+EEPROM stores the high score to the microprocessor even when powered off
 Special characters are output to the LCD and are created by writing to individual pixels
 
 Bugs:
