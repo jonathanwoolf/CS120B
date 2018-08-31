@@ -34,8 +34,8 @@ unsigned char highscore1 = 0;
 unsigned char highscore10 = 0;
 unsigned char highscore100 = 0;
 	
-const unsigned char course[35] = {0x81, 0x81, 0xE7, 0x81, 0x81, 0x81, 0xEA, 0x62, 0x34, 0x43, 0x2E, 0xB4, 0x24, 0x32, 0x15, 0x12, 0x0A, 0x89, 0xAB, 0xCB, 0x55, 0xBA, 0xBA, 0xAB, 0x55, 0x33, 0xAA,
-0xE7, 0x55, 0xCB, 0xAA, 0xE7, 0x55, 0xCB, 0xAA}; // This is the obstacle course
+const unsigned char course[36] = {0x81, 0x81, 0xE7, 0x81, 0x81, 0x81, 0xEA, 0x62, 0x35, 0xC3, 0x6E, 0xB4, 0x34, 0x32, 0x15, 0x32, 0x8A, 0x63, 0x89, 0xAC, 0xC7, 0x55, 0x99, 0xBA, 0xAB, 0x55, 0x33, 0xAA,
+0xE7, 0x57, 0xCB, 0xAA, 0xE7, 0x55, 0xCB, 0xBA}; // This is the obstacle course
 
 unsigned char customChar1[8] = {0x0A, 0x15, 0x1B, 0x15, 0x15, 0x15, 0x0A, 0x0E}; // Inverted custom character
 unsigned char customChar2[8] = {0x15, 0x0A, 0x04, 0x0A, 0x0A, 0x0A, 0x15, 0x11}; // This is the non-inverted one ;)
@@ -59,6 +59,7 @@ void transmit_data(unsigned char data) // Outputs to the lower nibble of PORTA a
 }
 
 void transmit_data2(unsigned char data) // Outputs to the upper nibble of PORTA and controls what value (displayed in green) is assigned to selected columns
+{
 	int i;
 	for (i = 8; i >= 0 ; --i) {
 		// Sets SRCLR to 1 allowing data to be set
@@ -139,7 +140,7 @@ int Obstacles_Task(int state)
 		if(column_sel == 0x7F) // If obstacle reaches the character return to the top of the matrix and iterate through course
 		{
 			column_sel = 0xFE;
-			if(i == 35) { i = 6; flag = !flag;} // If the end of the course is reached, reset iterator at beginning of standard course
+			if(i == 36) { i = 6; flag = !flag;} // If the end of the course is reached, reset iterator at beginning of standard course
 			if(!flag) // Display standard course
 			{
 				column_val = course[i];
