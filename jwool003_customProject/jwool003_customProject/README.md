@@ -1,6 +1,8 @@
 CubeRunner
 
-Project source can be downloaded at https://github.com/jonathanwoolf/CS120B/tree/master/jwool003_customProject/jwool003_customProject
+Project source code:
+
+https://github.com/jonathanwoolf/CS120B/tree/master/jwool003_customProject/jwool003_customProject
 
 Author and contribution list: Jonathan Woolf 
 
