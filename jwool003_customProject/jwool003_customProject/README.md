@@ -12,7 +12,7 @@ How to run the program on a properly wired breadboard:
 
 * Press the two centered buttons at the same time to start and reset the game
 * These buttons can also be used to move your character left and right
-* The button on the right activates overDrive and speeds up the rate in which you encounter obstacles
+* The button on the far right activates overDrive and speeds up the rate in which you encounter obstacles
 
 Summary:
 
