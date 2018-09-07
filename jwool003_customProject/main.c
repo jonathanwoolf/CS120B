@@ -34,16 +34,15 @@ unsigned char highscore1 = 0;
 unsigned char highscore10 = 0;
 unsigned char highscore100 = 0;
 	
-const unsigned char course[36] = {0x81, 0x81, 0xE7, 0x81, 0x81, 0x81, 0xEA, 0x62, 0x35, 0xC3, 0x4E, 0xB4, 0x34, 0x92, 0x15, 0x32, 0x8A, 0x63, 0x89, 0xAC, 0xC7, 0x55, 0x99, 0xBA, 0xAB, 0x55, 0x33, 0xAA,
-0xE7, 0x57, 0xCB, 0xAA, 0xE7, 0x55, 0xCB, 0xBA}; // This is the obstacle course
+const unsigned char course[36] = {0x81, 0x81, 0xE7, 0x81, 0x81, 0x81, 0xEA, 0x62, 0x35, 0xC3, 0x46, 0xB4, 0x34, 0x92, 0x15, 0x32, 0x8A, 0x63, 0x89, 0xAB, 0xC7, 0x55, 0x99, 0xBA, 0xAB, 0x55, 0x33, 0x6A,
+0xE5, 0x57, 0xCB, 0xAA, 0xE6, 0x55, 0xCB, 0xBA}; // This is the obstacle course
 
 unsigned char customChar1[8] = {0x0A, 0x15, 0x1B, 0x15, 0x15, 0x15, 0x0A, 0x0E}; // Inverted custom character
 unsigned char customChar2[8] = {0x15, 0x0A, 0x04, 0x0A, 0x0A, 0x0A, 0x15, 0x11}; // This is the non-inverted one ;)
 
 void transmit_data(unsigned char data) // Outputs to the lower nibble of PORTA and controls which columns are selected
 {
-	int i;
-	for (i = 8; i >= 0 ; --i) {
+	for (int i = 8; i >= 0 ; --i) {
 		// Sets SRCLR to 1 allowing data to be set
 		// Also clears SRCLK in preparation of sending data
 		PORTA = 0x08;
@@ -60,8 +59,7 @@ void transmit_data(unsigned char data) // Outputs to the lower nibble of PORTA a
 
 void transmit_data2(unsigned char data) // Outputs to the upper nibble of PORTA and controls what value (displayed in green) is assigned to selected columns
 {
-	int i;
-	for (i = 8; i >= 0 ; --i) {
+	for (int i = 8; i >= 0 ; --i) {
 		// Sets SRCLR to 1 allowing data to be set
 		// Also clears SRCLK in preparation of sending data
 		PORTA = 0x80;
@@ -86,7 +84,8 @@ int Character_Task(int state)
 		case button:
 			if(overDrive) // Sets flag that increases the speed of obstacles and the rate in which score is increased
 			{
-				masRapido = !masRapido; // Overdrive flag can be turned on and off each time the button is pressed
+				masRapido = !masRapido; // Overdrive flag is turned on and off each time the button is pressed
+				tasks[1].period = masRapido? 70 : 100; // This flag is then used to set the obstacle state machine's period
 				Character_State = wait;
 			}
 			if(leftButton && !rightButton) // Character moves to the left to avoid obstacles
@@ -126,7 +125,7 @@ int Character_Task(int state)
 enum Obstacles_States {start, obstacleCourse, delay} Obstacles_State;
 int Obstacles_Task(int state)
 {
-	static unsigned char flag = 0; // Flag to switch between courses
+	static unsigned char inverseFlag = 0; // Flag to switch between courses
 	static unsigned char i = 0; // Iterate through course
 	
 	switch (Obstacles_State){
@@ -140,12 +139,12 @@ int Obstacles_Task(int state)
 		if(column_sel == 0x7F) // If obstacle reaches the character return to the top of the matrix and iterate through course
 		{
 			column_sel = 0xFE;
-			if(i == 36) { i = 6; flag = !flag;} // If the end of the course is reached, reset iterator at beginning of standard course
-			if(!flag) // Display standard course
+			if(i == 36) { i = 6; inverseFlag = !inverseFlag;} // If the end of the course is reached, reset iterator at beginning of standard course
+			if(!inverseFlag) // Display standard course
 			{
 				column_val = course[i];
 			} 
-			else if(flag) // Display inverted course after standard course is complete
+			else if(inverseFlag) // Display inverted course after standard course is complete
 			{
 				column_val = ~course[i];
 			}
@@ -155,17 +154,13 @@ int Obstacles_Task(int state)
 		{
 			column_sel = (column_sel << 1) | 0x01; // Move obstacle column down toward the character and "or" with 0x01 in order to only display one column at a time
 		}
-		Obstacles_State = masRapido? obstacleCourse : delay; // Continue to iterate obstacle course
+		Obstacles_State = obstacleCourse; // Continue to iterate through obstacle course
 		if(!startGame) // Go to start and await soft reset
 		{ 
 			i = 0; 
-			flag = 0; 
-			masRapido = 0;
+			inverseFlag = 0; 
 			Obstacles_State = start;
 		} 
-		break;
-	case delay: // Delay doubles the time it takes for an obstacle to approach the character and is controlled by the masRapido flag
-		Obstacles_State = obstacleCourse;
 		break;
 	default: // A default state can only transition and will never allow you to set a value
 		Obstacles_State = start; 
@@ -190,7 +185,7 @@ int Synch_Task(int state)
 			PORTB = 0xFF;
 			if((column_sel == char_sel) && (column_val == (column_val | char_location))) // Collision detected GAME OVER
 			{ 
-				startGame = 0; 
+				startGame = 0;
 				char_location = 0x10; 
 				Synch_State = gameOver;
 			} 
@@ -212,6 +207,7 @@ int Synch_Task(int state)
 		case gameOver: // Illuminate all LEDs and wait for soft reset
 			transmit_data(0xFF);
 			PORTB = 0x00;
+			masRapido = 0;
 			Synch_State = gameOver;
 			if(startGame) // Reset detected: reset score and character location and return to display state
 			{ 
@@ -229,27 +225,32 @@ int Synch_Task(int state)
 // ====================
 // SM4: Output score and special character to LCD
 // ====================
-enum Score_State {scoreStart, scoreDisplay} Score_State;
+enum Score_State {scoreStart, scoreDisplay, highScoreDisplay} Score_State;
 int Score_Task(int state)
 {	
+	static unsigned char flag = 1; // Flag bit used to iterate between score and high score
+	static unsigned char count = 0; // Add delay to score incrementer
+	static unsigned char tmpScore; // Holds old high score;
 	switch(Score_State){
 		case scoreStart: 
-			Score_State = scoreStart; // Default state when the game is not running
-			if(startGame)
-			{ 
-				score100 = 0; // Sets all score values to 0
-				score10 = 0;
-				score1 = 0;
-				score = 0;
-				LCD_Cursor(2); LCD_WriteData(score100 + '0'); // Write each score value to the display from 100th place to 1th place
-				LCD_Cursor(3); LCD_WriteData(score10 + '0'); 
-				LCD_Cursor(4); LCD_WriteData(score1 + '0'); 
-				Score_State = scoreDisplay;
-			}
+			tmpScore = highscore;
+			count = 0; // Reset count to 0
+			score100 = 0; // Sets all score values to 0
+			score10 = 0;
+			score1 = 0;
+			score = 0;
+			LCD_ClearScreen();
+			LCD_Cursor(1); LCD_WriteData(1);
+			LCD_Cursor(2); LCD_WriteData(score100 + '0'); // Write each score value to the display from 100th place to 1th place
+			LCD_Cursor(3); LCD_WriteData(score10 + '0');
+			LCD_Cursor(4); LCD_WriteData(score1 + '0');
+			LCD_Cursor(5); LCD_WriteData(2);
+			Score_State = startGame? scoreDisplay : scoreStart; // Transition into scoreDisplay if game has started
 			break;
-		case scoreDisplay: // Displays game and iterates score
-			if(startGame)
+		case scoreDisplay: // Displays and iterates score
+			if(startGame && count == 1)
 			{
+				count = 0;
 				if(masRapido) // Iterate actual score and 1th place score on overDrive
 				{ 
 					score = score + 3; 
@@ -270,12 +271,14 @@ int Score_Task(int state)
 					score10 -= 10; 
 					score100++;
 				} 
-				LCD_Cursor(2); LCD_WriteData(score100 + '0'); //Write each score value to the display from 100th place to 1th place
-				LCD_Cursor(3); LCD_WriteData(score10 + '0');
-				LCD_Cursor(4); LCD_WriteData(score1 + '0');
+					LCD_Cursor(1); LCD_WriteData(1);
+					LCD_Cursor(2); LCD_WriteData(score100 + '0'); // Write each score value to the display from 100th place to 1th place
+					LCD_Cursor(3); LCD_WriteData(score10 + '0');
+					LCD_Cursor(4); LCD_WriteData(score1 + '0');
+					LCD_Cursor(5); LCD_WriteData(2);
 				Score_State = scoreDisplay;
 			}
-			if(!startGame)
+			if(!startGame) 
 			{
 				if(score > highscore) // If the high score has been beaten replace it with the current score 
 				{
@@ -283,15 +286,41 @@ int Score_Task(int state)
 					highscore10 = score10;
 					highscore1 = score1;
 					highscore = score;
+					eeprom_write_byte((uint8_t*)3, highscore100); // Write high score to memory
+					eeprom_write_byte((uint8_t*)4, highscore10);
+					eeprom_write_byte((uint8_t*)5, highscore1);
+					eeprom_write_byte((uint8_t*)6, highscore);
 				}
-				
-				eeprom_write_byte((uint8_t*)3, highscore100); // Write high score to memory
-				eeprom_write_byte((uint8_t*)4, highscore10);
-				eeprom_write_byte((uint8_t*)5, highscore1);
-				eeprom_write_byte((uint8_t*)6, highscore);
-				
-				Score_State = scoreStart;
+				Score_State = highScoreDisplay;
 			}
+			count++;
+			break;
+		case highScoreDisplay: // End game screen flashes between high score and recent score
+			if(flag && (tmpScore >= score))
+			{
+				flag = 0;
+				LCD_Cursor(2); LCD_WriteData(highscore100 + '0'); // Write each high score value to the display from 100th place to 1th place
+				LCD_Cursor(3); LCD_WriteData(highscore10 + '0');
+				LCD_Cursor(4); LCD_WriteData(highscore1 + '0');
+		
+			}
+			else if(flag && (score > tmpScore))
+			{
+				flag = 0;
+				LCD_ClearScreen();
+				LCD_DisplayString(1, "High Score!");
+			}
+			else
+			{
+				flag = 1;
+				LCD_ClearScreen();
+				LCD_Cursor(1); LCD_WriteData(1); 
+				LCD_Cursor(2); LCD_WriteData(score100 + '0'); // Write each score value to the display from 100th place to 1th place
+				LCD_Cursor(3); LCD_WriteData(score10 + '0');
+				LCD_Cursor(4); LCD_WriteData(score1 + '0');
+				LCD_Cursor(5); LCD_WriteData(2);
+			}
+			Score_State = startGame? scoreStart : highScoreDisplay; // Return to starting state or continue to display high score
 			break;
 		default: // A default state can only transition and will never allow you to set a value
 			Score_State = scoreStart;
@@ -340,7 +369,7 @@ int main(void)
 	tasks[i].TickFct = &Character_Task;
 	i++;
 	tasks[i].state = start;
-	tasks[i].period = 70;
+	tasks[i].period = 100;
 	tasks[i].elapsedTime = 0;
 	tasks[i].TickFct = &Obstacles_Task;
 	i++;
@@ -350,7 +379,7 @@ int main(void)
 	tasks[i].TickFct = &Synch_Task;
 	i++;
 	tasks[i].state = -1;
-	tasks[i].period = 1000;
+	tasks[i].period = 500;
 	tasks[i].elapsedTime = 0;
 	tasks[i].TickFct = &Score_Task;
     while(1){} //Scheduler occurs in TimerISR() function which is called automatically within while loop
